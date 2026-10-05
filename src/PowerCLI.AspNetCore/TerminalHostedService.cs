@@ -1,13 +1,15 @@
 using Microsoft.Extensions.Hosting;
 
-namespace PowerCLI.Host;
+namespace PowerCLI.AspNetCore;
 
 public sealed class TerminalHostedService(
     TerminalClientService terminal,
-    IHostApplicationLifetime lifetime) : BackgroundService
+    IHostApplicationLifetime lifetime,
+    bool stopApplicationOnExit = true) : BackgroundService
 {
     private readonly TerminalClientService _terminal = terminal;
     private readonly IHostApplicationLifetime _lifetime = lifetime;
+    private readonly bool _stopApplicationOnExit = stopApplicationOnExit;
 
     public bool Failed { get; private set; }
 
@@ -26,6 +28,6 @@ public sealed class TerminalHostedService(
             throw;
         }
 
-        _lifetime.StopApplication();
+        if (_stopApplicationOnExit) _lifetime.StopApplication();
     }
 }

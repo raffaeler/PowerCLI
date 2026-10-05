@@ -225,6 +225,16 @@ public sealed class InteractiveLineEditor : ILineEditor
                 case ConsoleKey.Enter:
                     Finish(surface, startLeft, startTop, prompt, line.ToString(), previousRows);
                     return line.ToString();
+                case ConsoleKey.Escape:
+                    line.Clear();
+                    cursor = 0;
+                    pickerClosed = true;
+                    activeIndex = 0;
+                    firstVisible = 0;
+                    selectedValues.Clear();
+                    selectionOverrides.Clear();
+                    selectionPrefix = null;
+                    break;
                 case ConsoleKey.LeftArrow when cursor > 0:
                     cursor--;
                     pickerClosed = false;

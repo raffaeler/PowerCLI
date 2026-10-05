@@ -147,7 +147,7 @@ public sealed class CommandCompletionTests
             { ["a"] = new() { Choices = new() { Values = ["Human Approval"] } }, ["b"] = new() }
         };
         var surface = new FakeSurface([.. Text("/x Hu PreserveMe"), Key(ConsoleKey.Home),
-            .. Enumerable.Repeat(Key(ConsoleKey.RightArrow), 5), Enter, Key(ConsoleKey.Escape), Enter]);
+            .. Enumerable.Repeat(Key(ConsoleKey.RightArrow), 5), Enter, Enter]);
         var editor = new InteractiveLineEditor(new FakeConsole(), new TerminalCompletionResolver(ConfigurableCommandTests.Create(form)), surface);
         Assert.Equal("/x \"Human Approval\" PreserveMe", await editor.ReadLineAsync("You> ", Token));
         Assert.Equal(0, surface.RemainingKeys);

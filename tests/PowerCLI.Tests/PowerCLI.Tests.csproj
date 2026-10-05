@@ -14,6 +14,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\PowerCLI\PowerCLI.csproj" />
+    <ProjectReference Include="..\..\src\PowerCLI.AspNetCore\PowerCLI.AspNetCore.csproj" />
     <ProjectReference Include="..\..\src\PowerCLI.Demo\PowerCLI.Demo.csproj" />
     <ProjectReference Include="..\..\src\PowerCLI.Host\PowerCLI.Host.csproj" Aliases="PowerCliHost" />
   </ItemGroup>

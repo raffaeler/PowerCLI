@@ -16,6 +16,7 @@ concepts belong to the host application, not the terminal.
 | Project | Purpose |
 | --- | --- |
 | `src/PowerCLI` | Reusable command, editing, rendering, and terminal I/O library with no application-domain dependency. |
+| `src/PowerCLI.AspNetCore` | Reusable DI registrations and terminal background service for .NET Generic Host and ASP.NET Core applications. |
 | `src/PowerCLI.Demo` | Two-file sample application with fluent commands, multi-select choices, and ordinary-input streaming. |
 | `src/PowerCLI.Host` | The same sample using dependency injection and a .NET Generic Host background service. |
 | `tests/PowerCLI.Tests` | xUnit v3 coverage for commands, completion, history, Markdown rendering, argument parsing, sample apps, and hosted lifecycle. |
@@ -67,14 +68,40 @@ dependencies, or JSON files to deploy.
 `PowerCLI.Host` demonstrates the same terminal with .NET Generic Host dependency
 injection instead of manual wiring. It compile-links `DemoApplication.cs`, so both
 demos share the sample commands and behavior without referencing the demo executable.
-Its host-local `AddPowerCliDemo` registrations share one application instance and
-command registry across dispatch, completion, and ordinary input. A small
-`BackgroundService` runs the terminal; `/exit` or EOF stops the host, and the host
+Its sample-specific registrations share one application instance and command
+registry across dispatch, completion, and ordinary input. It uses the reusable
+`AddPowerCli` extension and `TerminalHostedService` from `PowerCLI.AspNetCore`;
+`/exit` or EOF stops the host, and the host
 owns Ctrl+C cancellation. Informational host logs are suppressed, while unexpected
 background-service failures are logged to stderr without ANSI colors and return
-a nonzero exit code. Hosting dependencies exist only in this executable (and its
-tests): the core and original demo remain dependency-free. There is no ASP.NET Core
-web server, web framework reference, or required configuration file.
+a nonzero exit code. Hosting integration lives in `PowerCLI.AspNetCore`, which
+references only the core and hosting abstractions; the core and original demo
+remain dependency-free. There is no required ASP.NET Core web server, web framework
+reference, or configuration file.
+
+For another host, reference `PowerCLI.AspNetCore` and register your own application
+services, then add the terminal:
+
+```csharp
+using PowerCLI;
+using PowerCLI.AspNetCore;
+
+builder.Services.AddSingleton(commandRegistry);
+builder.Services.AddSingleton<ITerminalInputHandler, ApplicationInputHandler>();
+builder.Services.AddPowerCli(
+    new TerminalClientOptions { Prompt = "App> ", WelcomeMessage = "Application ready." },
+    stopApplicationOnExit: false);
+```
+
+The input handler is optional. Without a custom registry, only `/help` is available.
+Console, dispatch, completion, editor, registry, and terminal options registrations
+can be supplied before or after `AddPowerCli`; existing registrations are preserved.
+Set `WelcomeMessage = null` to suppress the welcome text. By default, terminal exit
+or EOF stops the application; use `stopApplicationOnExit: false` when a web server
+or other hosted services must keep running. Host cancellation still stops the
+terminal, and unexpected failures propagate to the host's background-service
+error handling. Repeated registration adds only one terminal hosted service;
+the first call supplies defaults unless explicitly overridden through DI.
 
 `TerminalClientService` requires only a console and command dispatcher. Supply
 an optional `ITerminalInputHandler` for ordinary input, returning plain or
@@ -88,7 +115,8 @@ Type `/` to open the command menu. Use **Up/Down** to navigate; typing filters c
 **Enter** accepts the highlighted option and advances to its argument menu, when applicable.
 Press **Enter** again to submit the completed line (an exact single choice submits immediately).
 For the demo's `/choose ` menu, **Space** toggles choices and **Enter** accepts the
-selected set. **Escape** closes the picker without changing the input.
+selected set. **Escape** closes the picker without changing the input; when no picker
+is open, it clears the entire input line and resets the caret to the start.
 **Left/Right**, **Home/End**, **Backspace**, and **Delete** edit the line.
 When no menu choices are shown, **Up/Down** browses submitted input history without wrapping.
 Moving down past the newest entry restores your original draft and cursor.

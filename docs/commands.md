@@ -156,13 +156,29 @@ plain text through the console adapter. There are no hard-coded answer,
 reasoning, or tool activity kinds or labels. Streaming failures are reported,
 and cancellation propagates. Set `WelcomeMessage` to null to suppress it.
 
-For dependency-injection wiring, see `src\PowerCLI.Host`. This console sample uses
-`Microsoft.Extensions.Hosting` and a `BackgroundService` to run the same
-`DemoApplication` as the manually wired demo. One singleton application and registry
-serve execution, completion, and ordinary input. The host owns cancellation and
-stops when the terminal returns on `/exit` or EOF. Run it with
-`dotnet run --project src\PowerCLI.Host`. Hosting dependencies stay in the sample;
-the core needs no DI or ASP.NET Core dependency.
+For dependency-injection wiring, reference `PowerCLI.AspNetCore` and import
+`PowerCLI.AspNetCore`. Its `AddPowerCli(TerminalClientOptions? options = null,
+bool stopApplicationOnExit = true)` extension registers generic singleton defaults
+and `TerminalHostedService`, with no sample application dependency. Register your
+own `CommandRegistry` and optional `ITerminalInputHandler`; the default registry
+contains only `/help`. Custom console, dispatcher, completion resolver, editor,
+registry, and terminal options registrations can be supplied before or after the
+extension. Repeated calls do not add duplicate workers; the first call supplies
+defaults unless explicitly overridden through DI.
+
+Pass `new TerminalClientOptions { Prompt = "App> ", WelcomeMessage = "Ready." }`
+to customize the text, or set `WelcomeMessage = null` to hide it. The host owns
+cancellation and, by default, stops when the terminal returns on exit or EOF.
+Use `stopApplicationOnExit: false` to leave a web server or other services running
+after the terminal finishes. Unexpected terminal failures propagate to the host's
+background-service error handling; `TerminalHostedService.Failed` lets a console
+host choose a nonzero exit code.
+
+See `src\PowerCLI.Host` for a console sample using the same `DemoApplication` as
+the manually wired demo, sharing one application and registry across execution,
+completion, and ordinary input. Run it with
+`dotnet run --project src\PowerCLI.Host`. Hosting abstractions stay in the
+integration library; the core needs no DI or ASP.NET Core dependency.
 
 ## JSON
 
@@ -322,7 +338,8 @@ dynamic contextual values. `CompletionRequest` carries input and cursor;
 `OptionPicker` carries the exact replacement span and cursor-prefix filter.
 Accepting a menu preserves the suffix. Multiple selection replaces only its
 contiguous capture/option segment and never removes surrounding options.
-Space toggles multiple choices, arrows navigate, Escape dismisses, and Enter
+Space toggles multiple choices, arrows navigate, Escape dismisses an open picker
+(otherwise clearing the entire input line and resetting the caret), and Enter
 accepts then submits on the next Enter; an exact final scalar choice can submit
 immediately. Chained menus, six-row scrolling, cursor editing, and quoting remain
 available. Redirects use ordinary line input, no cursor operations or injected

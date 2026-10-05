@@ -7,8 +7,7 @@ using PowerCLI;
 using Xunit;
 using HostApplication = PowerCliHost::PowerCLI.Demo.DemoApplication;
 using HostProgram = PowerCliHost::PowerCLI.Host.Program;
-using HostServices = PowerCliHost::PowerCLI.Host.HostServiceCollectionExtensions;
-using HostedTerminal = PowerCliHost::PowerCLI.Host.TerminalHostedService;
+using HostedTerminal = PowerCLI.AspNetCore.TerminalHostedService;
 
 namespace PowerCLI.Tests;
 
@@ -23,7 +22,7 @@ public sealed class HostedTerminalTests
         var services = new ServiceCollection();
         services.AddLogging();
         services.AddSingleton<IHostApplicationLifetime>(new ApplicationLifetimeStub());
-        HostServices.AddPowerCliDemo(services);
+        HostProgram.ConfigureServices(services);
         using var provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
 
         Assert.IsType<SystemTerminalConsole>(provider.GetRequiredService<ITerminalConsole>());
@@ -169,7 +168,7 @@ public sealed class HostedTerminalTests
             DisableDefaults = true
         });
         builder.Logging.ClearProviders().AddProvider(logs);
-        HostServices.AddPowerCliDemo(builder.Services);
+        HostProgram.ConfigureServices(builder.Services);
         builder.Services.AddSingleton<ITerminalConsole>(console);
         return builder;
     }

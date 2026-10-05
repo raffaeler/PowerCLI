@@ -87,6 +87,77 @@ public sealed class InteractiveLineEditorTests
         Assert.Equal("x", await editor.ReadLineAsync("You> ", Token));
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    [InlineData(6)]
+    public async Task EscapeClearsEntireInputAtAnyCursorPosition(int cursor)
+    {
+        var surface = new FakeSurface(
+        [
+            .. Text("abcdef"), Key(ConsoleKey.Home),
+            .. Enumerable.Repeat(Key(ConsoleKey.RightArrow), cursor),
+            Key(ConsoleKey.Escape), Key(ConsoleKey.Enter)
+        ]);
+        var editor = CreateEditor(surface);
+
+        Assert.Equal("", await editor.ReadLineAsync("You> ", Token));
+        Assert.Equal(0, surface.RemainingKeys);
+    }
+
+    [Fact]
+    public async Task EscapeResetsCursorAndAllowsTypingAfterRepeatedClears()
+    {
+        var surface = new FakeSurface(
+        [
+            .. Text("old"), Key(ConsoleKey.LeftArrow), Key(ConsoleKey.Escape),
+            Key(ConsoleKey.Escape), .. Text("new"), Key(ConsoleKey.Enter)
+        ]);
+        var editor = CreateEditor(surface);
+
+        Assert.Equal("new", await editor.ReadLineAsync("You> ", Token));
+    }
+
+    [Fact]
+    public async Task SecondEscapeClearsInputAfterDismissingMenu()
+    {
+        var surface = new FakeSurface(
+        [
+            Character('x'), Key(ConsoleKey.Escape), Key(ConsoleKey.Escape), Key(ConsoleKey.Enter)
+        ]);
+        var editor = CreateEditor(surface, new FixedResolver(new("", [new("xyz", "xyz")])));
+
+        Assert.Equal("", await editor.ReadLineAsync("You> ", Token));
+        Assert.Equal(0, surface.RemainingKeys);
+    }
+
+    [Fact]
+    public async Task TypingAfterEscapeClearReopensCompletionWithoutSelectionOverrides()
+    {
+        var surface = new FakeSurface(
+        [
+            .. Text("/use "), Key(ConsoleKey.Spacebar), Key(ConsoleKey.Escape),
+            Key(ConsoleKey.Escape), .. Text("/use "), Key(ConsoleKey.Enter), Key(ConsoleKey.Enter)
+        ]);
+        var editor = CreateEditor(surface,
+            new FixedResolver(new("/use ", [new("one", "One", true)], OptionPickerMode.Multiple)));
+
+        Assert.Equal("/use one", await editor.ReadLineAsync("You> ", Token));
+    }
+
+    [Fact]
+    public async Task EscapeClearsRecalledInputWithoutRemovingHistory()
+    {
+        var editor = await CreateHistoryEditorAsync(["old"],
+        [
+            Key(ConsoleKey.UpArrow), Key(ConsoleKey.Escape), Key(ConsoleKey.Enter),
+            Key(ConsoleKey.UpArrow), Key(ConsoleKey.Enter)
+        ]);
+
+        Assert.Equal("", await editor.ReadLineAsync(Token));
+        Assert.Equal("old", await editor.ReadLineAsync(Token));
+    }
+
     [Fact]
     public async Task LeftRightHomeEndBackspaceAndDeleteEditAtCursor()
     {
@@ -613,10 +684,22 @@ public sealed class InteractiveLineEditorTests
     private static async Task<InteractiveLineEditor> CreateHistoryEditorAsync(
         IReadOnlyList<string> history, IEnumerable<ConsoleKeyInfo> keys, IOptionPickerResolver? resolver = null)
     {
-        var surface = new FakeSurface(history.SelectMany(input =>
-            Text(input).Concat([Key(ConsoleKey.Escape), Key(ConsoleKey.Enter)])).Concat(keys));
+        var surface = new FakeSurface([]);
         var editor = CreateEditor(surface, resolver);
-        foreach (var input in history) Assert.Equal(input, await editor.ReadLineAsync(Token));
+        foreach (var input in history)
+        {
+            surface.EnqueueKeys(Text(input));
+            if (resolver is not null &&
+                await resolver.ResolvePickerAsync(new CompletionRequest(input, input.Length), Token) is not null)
+            {
+                surface.EnqueueKeys([Key(ConsoleKey.Escape)]);
+            }
+
+            surface.EnqueueKeys([Key(ConsoleKey.Enter)]);
+            Assert.Equal(input, await editor.ReadLineAsync(Token));
+        }
+
+        surface.EnqueueKeys(keys);
         return editor;
     }
 
