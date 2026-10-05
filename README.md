@@ -2,7 +2,7 @@
 
 `PowerCLI` is a .NET 10, console-independent class library for building general-purpose interactive terminals. It supplies:
 
-- Configurable version-1 JSON commands, typed quote-aware parsing, generated help, and cursor-aware completion.
+- Fluent C# or version-1 JSON commands, typed quote-aware parsing, generated help, and cursor-aware completion.
 - A generic terminal loop with host-defined input processing, streamed output, and configurable prompt text.
 - Raw-key editing and filtered single/multi-select menus, ANSI/plain console adapters, and redirected-I/O safeguards.
 - Incremental Markdown streaming with headings, code, lists, links, images, emphasis, tables-as-text, and HTML break normalization.
@@ -16,14 +16,33 @@ concepts belong to the host application, not the terminal.
 | Project | Purpose |
 | --- | --- |
 | `src/PowerCLI` | Reusable command, editing, rendering, and terminal I/O library with no application-domain dependency. |
-| `src/PowerCLI.Demo` | Sample host that owns its bogus agents, workflow choices, skills, catalog, selection state, and tools. |
-| `tests/PowerCLI.Tests` | xUnit v3 coverage for commands, completion, Markdown rendering, argument parsing, and tools. |
+| `src/PowerCLI.Demo` | Two-file sample application with fluent commands, multi-select choices, and ordinary-input streaming. |
+| `tests/PowerCLI.Tests` | xUnit v3 coverage for commands, completion, history, Markdown rendering, argument parsing, and the sample app. |
 
 Run the sample with `dotnet run --project src\PowerCLI.Demo` and verify the solution with `dotnet test PowerCLI.sln`.
 
-**Only `/help` is automatically built in.** Hosts load `CommandConfiguration`
-from JSON or construct records, bind opaque handler/provider/validator IDs through
-public interfaces, and compile a `CommandRegistry` once at startup. Use
+**Only `/help` is automatically built in.** The simplest registration path is
+`CommandRegistryBuilder`: declare commands and attach ordinary methods or inline callbacks.
+Each option is declared once; the builder generates its syntax and metadata together.
+
+```csharp
+var registry = new CommandRegistryBuilder()
+    .Command("/echo", command => command
+        .Description("Echo quoted text.")
+        .Form("<text>", form => form
+            .Argument("text")
+            .Flag("--upper")
+            .Handle(input => TerminalCommandResult.Message(
+                input["--upper"].Boolean ? input["text"].String.ToUpperInvariant() : input["text"].String))))
+    .Build();
+```
+
+Add another `.Command(...)` to register an action. Add a `.Flag(...)` or
+`.Option("--format", "format", option => option.Choices("text", "json").Default("text"))`
+to its form to add an option, without editing a separate syntax string or handler registry.
+Callbacks for asynchronous execution, dynamic choices, and custom validation use the
+same generic engine. JSON configuration, public records, and explicit interface-based
+registration remain supported for hosts that prefer them. Use
 `TerminalCommandHandler` as the injected `ICommandDispatcher` and
 `TerminalCompletionResolver` as the editor's `IOptionPickerResolver`.
 Invalid or ambiguous definitions are rejected before input is accepted; there
@@ -34,10 +53,14 @@ See the [command configuration and grammar reference](docs/commands.md) and
 [version-1 JSON Schema](docs/commands.schema.json) for aliases, subcommands,
 alternatives, optional/repeated arguments, named options, types/bounds/defaults,
 static/dynamic choices, host registration, and deliberate deterministic grammar
-limits. The demo loads its explicit `commands.json` from its output directory;
-its host handlers/providers recreate the catalog commands and a generic bogus
-`/export` without adding library dependencies. Catalog trust and tool approval
-rules are implemented exclusively by this sample host.
+limits.
+
+The demo contains only `Program.cs` (terminal wiring and cancellation) and
+`DemoApplication.cs` (command declarations, small application callbacks, and streamed
+sample responses). It provides `/echo`, `/choose`, `/export`, `/clear`, and `/exit`
+alongside built-in `/help`. `/export` only describes a bogus operation; it never writes
+files. There are no demo-specific interfaces, agent/workflow/tool framework, external
+dependencies, or JSON files to deploy.
 
 `TerminalClientService` requires only a console and command dispatcher. Supply
 an optional `ITerminalInputHandler` for ordinary input, returning plain or
@@ -50,7 +73,7 @@ prompt and optional welcome text.
 Type `/` to open the command menu. Use **Up/Down** to navigate; typing filters choices.
 **Enter** accepts the highlighted option and advances to its argument menu, when applicable.
 Press **Enter** again to submit the completed line (an exact single choice submits immediately).
-For `/use skill ` and `/use instruction `, **Space** toggles choices and **Enter** accepts the
+For the demo's `/choose ` menu, **Space** toggles choices and **Enter** accepts the
 selected set. **Escape** closes the picker without changing the input.
 **Left/Right**, **Home/End**, **Backspace**, and **Delete** edit the line.
 When no menu choices are shown, **Up/Down** browses submitted input history without wrapping.
@@ -66,6 +89,5 @@ are quoted and escaped automatically. Redirected input or output uses ordinary l
 without cursor movement or menus.
 Completing in the middle of a line preserves the surrounding text; option values
 support both separated and equals syntax. Execution re-fetches dynamic choices,
-and the demo's own catalog handlers revalidate trust rather than treating a
-completion as authorization. Its approval policy is never requested when
-either console stream is redirected.
+rather than treating a completion snapshot as validation or authorization.
+Application-specific trust and approval policies remain the host's responsibility.

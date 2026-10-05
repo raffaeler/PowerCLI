@@ -4,7 +4,95 @@ PowerCLI automatically registers **only `/help [<command>]`**. All application
 commands are explicit host configuration. There is no legacy preset, file
 discovery, scripting, reflection-based activation, or runtime reload.
 
-## Host registration
+## Fluent C# registration
+
+Use `CommandRegistryBuilder` to attach callbacks without handler/provider/validator
+classes or registration dictionaries. The builder creates the same version-1
+configuration records and compiles them through `CommandRegistry`; parsing, help,
+completion, validation, and diagnostics are shared with JSON hosts.
+
+```csharp
+var registry = new CommandRegistryBuilder()
+    .Command("/export", command => command
+        .Description("Describe a sample export.")
+        .Alias("/save")
+        .Form("<target>", form => form
+            .Argument("target", value => value.Type("relativePath").Description("Sample destination."))
+            .Option("--format", "format", option => option
+                .Alias("-f").Choices("text", "json").Default("text"))
+            .Flag("--force", option => option.Alias("-y"))
+            .Option("--tag", "tags", option => option.Repeat())
+            .Example("/export sample.json -f json --tag bogus")
+            .Handle(input => TerminalCommandResult.Message(
+                $"Sample: {input["target"].String}, {input["--format"].String}"))))
+    .Build();
+```
+
+Add a command with `.Command(name, configure)`, then one or more
+`.Form(positionalSyntax, configure)` declarations. Positional syntax uses the existing
+literal/capture grammar below, including distinguishable subcommands and alternatives.
+Every capture needs `.Argument(name, configure)` (omit `configure` for plain strings).
+The form's syntax excludes named options: declare each option once using `.Flag(...)`
+or `.Option(name, valueName, configure)`. Their canonical names, value names, aliases,
+requiredness, and repetition generate the usage syntax automatically.
+
+| Declaration | Generated syntax |
+| --- | --- |
+| `.Flag("--force")` | `[--force]` |
+| `.Flag("--force", option => option.Required())` | `--force` |
+| `.Option("--format", "format")` | `[--format <format>]` |
+| `.Option("--format", "format", option => option.Required())` | `--format <format>` |
+| `.Option("--tag", "tags", option => option.Repeat())` | `[--tag <tags>]*` |
+| `.Option("--tag", "tags", option => option.Required().Repeat())` | `(--tag <tags>)+` |
+
+Flags have Boolean type and cannot repeat. Options default to string type; `.Type(...)`
+uses the supported types below. Value builders support `.Description(...)`,
+`.Default(string)`, `.Bounds(min, max)`, `.Length(min, max)`, and `.Choices(...)`.
+Static choices are closed and case-insensitive by default; `.Suggestions()` allows
+other input and `.CaseSensitive()` changes static matching. `.Multiple()` enables
+multi-select choices for a repeated capture or option.
+
+`.Handle(...)` accepts `Func<CommandInvocation, TerminalCommandResult>` or
+`Func<CommandInvocation, CancellationToken, ValueTask<TerminalCommandResult>>`.
+Attach a method group or use an inline callback; no form-ID dispatch switch is needed.
+Dynamic choices and validators also accept inline, cancellation-aware callbacks:
+
+```csharp
+var selected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+var registry = new CommandRegistryBuilder()
+    .Command("/choose", command => command
+        .Form("<items>*", form => form
+            .Argument("items", value => value.Multiple().Choices((context, token) =>
+            {
+                token.ThrowIfCancellationRequested();
+                return ValueTask.FromResult(new CommandChoiceSnapshot(
+                    new[] { "brief", "with examples" }.Select(item =>
+                        new TerminalOption(item, item, selected.Contains(item))).ToArray(),
+                    Mode: OptionPickerMode.Multiple));
+            }))
+            .Handle(input =>
+            {
+                selected.Clear();
+                selected.UnionWith(input["items"].Strings);
+                return TerminalCommandResult.Message("Updated choices.");
+            })))
+    .Build();
+```
+
+Dynamic callbacks return their matching policy and selection mode in the snapshot;
+the mode must agree with `.Multiple()`. They are re-evaluated at execution, not cached
+from completion. `.Validate((invocation, name, value, token) => ...)` accepts a
+`ValueTask<string?>`: null means valid, and a message explains invalid input.
+It sees the same converted/canonical values as interface-based validators.
+
+Generated registration/form IDs are internal plumbing; application callbacks do not
+need to name or dispatch on them. Duplicate declarations and invalid configurations
+fail explicitly. `Build()` snapshots the declarations; later changes to a retained
+builder do not alter an existing registry. Callbacks can intentionally observe mutable
+application state, as the selection example does. `/help` remains the only automatic
+command; there is no reflection, automatic method discovery, or parameter binding.
+
+## JSON and interface-based host registration
 
 Load a string with `CommandConfiguration.FromJson`, read a stream with
 `FromJsonAsync`, or construct the same public records in code. Register opaque
@@ -230,27 +318,27 @@ Space toggles multiple choices, arrows navigate, Escape dismisses, and Enter
 accepts then submits on the next Enter; an exact final scalar choice can submit
 immediately. Chained menus, six-row scrolling, cursor editing, and quoting remain
 available. Redirects use ordinary line input, no cursor operations or injected
-ANSI styling. Application-specific approvals belong to the host; the sample
-never requests a tool approval when either console stream is redirected.
+ANSI styling. When no choices are displayed, Up/Down browses editor-session history
+and Ctrl+R removes the recalled entry. Navigation past the newest entry or removal of
+it restores the original draft and cursor. Application-specific authorization and
+approval policies belong to the host.
 
-The library does not define or select catalog resources. The demo's
-`commands.json`, `DemoCommandHandler`, and `DemoCatalogChoices` explicitly
-recreate its application commands and bogus `/export`. Its selection and
-catalog types live in `PowerCLI.Demo`, not the reusable assembly. They filter
-untrusted resources/disabled instructions, limit
-workflow execution to trusted prompt-capable top-level workflows, and revalidate
-at the handler boundary. Skills and enabled instructions are the only selectable
-supporting documents. Catalog failures never fall back to a stale snapshot.
-`DemoInputHandler` adapts the sample's agents, workflows, and tool approvals to
-the generic input/output contract; none of those concepts is needed by another
-host.
+The library does not define or select catalog resources. The two-file demo uses
+`Program.cs` for terminal wiring and `DemoApplication.cs` for fluent commands and
+sample streamed responses. `/echo` demonstrates quoted input and a flag, `/choose`
+demonstrates dynamic multi-selection and selected-item highlighting, and `/export`
+demonstrates defaults, aliases, types, and repeated options without file access.
+`/clear` and `/exit` return the existing generic command effects. No agents,
+workflows, catalog documents, tools, or approval services are required to host a
+terminal. A real application owns its domain policies and must revalidate any
+authorization-sensitive actions at execution.
 
 ### Migrating the original domain-bound API
 
 The old core `TerminalDocumentKind`, catalog/selection types, agent/workflow
 interfaces and activities, tool catalog/policies, model preflight, and sample-root
-startup settings are removed. Useful sample types now belong to
-`PowerCLI.Demo`; unused model/startup configuration is not retained.
+startup settings are removed. The demo no longer carries that domain framework;
+applications retain their own domain logic outside the terminal library.
 `WorkflowToRun` is removed from command results. Supply a host-produced
 `Output` stream instead. Replace the old service constructor's selection,
 agent, workflow runner, tools, and approval parameters with a single optional

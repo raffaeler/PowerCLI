@@ -1,6 +1,5 @@
 using System.Text.Json;
 using PowerCLI;
-using PowerCLI.Demo;
 using Xunit;
 
 namespace PowerCLI.Tests;
@@ -27,12 +26,17 @@ public sealed class CommandSchemaTests
     }
 
     [Fact]
-    public void DemoJsonAndSchemaAreCopiedToOutputAndDemoConfigurationCompiles()
+    public void JsonConfigurationStillCompilesWithoutDemoDeploymentFiles()
     {
-        var json = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "commands.json"));
+        const string json = """
+            {"schemaVersion":1,"commands":[{"name":"/echo","forms":[
+                {"id":"echo","syntax":"<text>","handler":"echo","arguments":{"text":{}}}
+            ]}]}
+            """;
         var configuration = CommandConfiguration.FromJson(json);
         Assert.Equal(1, configuration.SchemaVersion);
-        var registry = DemoTestCommands.Create(new InMemoryTerminalCatalogProvider(TerminalCatalog.Empty), new());
-        Assert.Contains("/export", registry.CommandNames);
+        var registry = new CommandRegistry(configuration,
+            new Dictionary<string, ICommandHandler> { ["echo"] = new RecordingCommandHandler() });
+        Assert.Contains("/echo", registry.CommandNames);
     }
 }

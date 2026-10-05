@@ -7,6 +7,5 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\PowerCLI\PowerCLI.csproj" />
-    <None Update="commands.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

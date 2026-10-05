@@ -15,6 +15,5 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\PowerCLI\PowerCLI.csproj" />
     <ProjectReference Include="..\..\src\PowerCLI.Demo\PowerCLI.Demo.csproj" />
-    <None Include="..\..\src\PowerCLI.Demo\commands.json" Link="commands.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

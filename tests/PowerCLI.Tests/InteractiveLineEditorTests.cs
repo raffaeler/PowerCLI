@@ -199,27 +199,24 @@ public sealed class InteractiveLineEditorTests
     }
 
     [Fact]
-    public async Task TerminalResolverChainsCommandsAndIncludesWorkflowAgents()
+    public async Task TerminalResolverChainsIntoDemoMultipleChoiceMenu()
     {
-        var session = new TerminalSelectionSession();
-        var provider = new InMemoryTerminalCatalogProvider(new(
-            [new("writer", "Writer", TerminalDocumentKind.Agent, "body")],
-            [new("demo", "Demo", "bogus workflow", "Start --> End")]));
-        var registry = DemoTestCommands.Create(provider, session);
+        var app = new DemoApplication();
+        var registry = app.CreateCommands();
         var resolver = new TerminalCompletionResolver(registry);
         var surface = new FakeSurface(
         [
-            .. Text("/use"), Key(ConsoleKey.Enter), Key(ConsoleKey.Enter),
+            .. Text("/cho"), Key(ConsoleKey.Enter), Character(' '), Key(ConsoleKey.Spacebar),
             Key(ConsoleKey.Enter), Key(ConsoleKey.Enter)
         ]);
         var editor = CreateEditor(surface, resolver);
         var line = await editor.ReadLineAsync("You> ", Token);
 
-        Assert.Equal("/use agent demo", line);
+        Assert.Equal("/choose concise", line);
         var handler = new TerminalCommandHandler(registry);
         await handler.HandleAsync(line, Token);
-        Assert.Equal("demo", session.Current.WorkflowId);
-        Assert.Contains("[w] Demo", surface.Output.ToString());
+        Assert.Equal(["concise"], app.SelectedItems);
+        Assert.Contains("with examples", surface.Output.ToString());
     }
 
     [Fact]
@@ -227,9 +224,7 @@ public sealed class InteractiveLineEditorTests
     {
         var console = new FakeConsole();
         var surface = new FakeSurface([.. Text("/exit"), Key(ConsoleKey.Enter)]);
-        var session = new TerminalSelectionSession();
-        var provider = new InMemoryTerminalCatalogProvider(TerminalCatalog.Empty);
-        var registry = DemoTestCommands.Create(provider, session);
+        var registry = new DemoApplication().CreateCommands();
         var editor = new InteractiveLineEditor(console, new TerminalCompletionResolver(registry), surface);
         var service = new TerminalClientService(console, new RecordingDispatcher(),
             lineEditor: editor);
