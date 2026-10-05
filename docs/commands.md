@@ -156,6 +156,14 @@ plain text through the console adapter. There are no hard-coded answer,
 reasoning, or tool activity kinds or labels. Streaming failures are reported,
 and cancellation propagates. Set `WelcomeMessage` to null to suppress it.
 
+For dependency-injection wiring, see `src\PowerCLI.Host`. This console sample uses
+`Microsoft.Extensions.Hosting` and a `BackgroundService` to run the same
+`DemoApplication` as the manually wired demo. One singleton application and registry
+serve execution, completion, and ordinary input. The host owns cancellation and
+stops when the terminal returns on `/exit` or EOF. Run it with
+`dotnet run --project src\PowerCLI.Host`. Hosting dependencies stay in the sample;
+the core needs no DI or ASP.NET Core dependency.
+
 ## JSON
 
 Associate [commands.schema.json](commands.schema.json) with your configuration in

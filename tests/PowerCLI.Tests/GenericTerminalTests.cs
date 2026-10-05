@@ -14,7 +14,10 @@ public sealed class GenericTerminalTests
         var names = assembly.GetExportedTypes().Select(type => type.Name).ToArray();
         foreach (var forbidden in new[] { "Agent", "Workflow", "Catalog", "Document", "Selection", "Skill", "Instruction", "Tool", "Model", "Startup" })
             Assert.DoesNotContain(names, name => name.Contains(forbidden, StringComparison.Ordinal));
-        Assert.DoesNotContain(assembly.GetReferencedAssemblies(), reference => reference.Name == "PowerCLI.Demo");
+        Assert.DoesNotContain(assembly.GetReferencedAssemblies(), reference =>
+            reference.Name is "PowerCLI.Demo" or "PowerCLI.Host" ||
+            reference.Name?.StartsWith("Microsoft.Extensions.", StringComparison.Ordinal) == true ||
+            reference.Name?.StartsWith("Microsoft.AspNetCore.", StringComparison.Ordinal) == true);
         Assert.Equal(["Text", "Markdown"], Enum.GetNames<TerminalOutputKind>());
         Assert.DoesNotContain(typeof(TerminalCommandResult).GetProperties(), property => property.Name == "WorkflowToRun");
     }

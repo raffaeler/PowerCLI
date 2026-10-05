@@ -17,9 +17,11 @@ concepts belong to the host application, not the terminal.
 | --- | --- |
 | `src/PowerCLI` | Reusable command, editing, rendering, and terminal I/O library with no application-domain dependency. |
 | `src/PowerCLI.Demo` | Two-file sample application with fluent commands, multi-select choices, and ordinary-input streaming. |
-| `tests/PowerCLI.Tests` | xUnit v3 coverage for commands, completion, history, Markdown rendering, argument parsing, and the sample app. |
+| `src/PowerCLI.Host` | The same sample using dependency injection and a .NET Generic Host background service. |
+| `tests/PowerCLI.Tests` | xUnit v3 coverage for commands, completion, history, Markdown rendering, argument parsing, sample apps, and hosted lifecycle. |
 
 Run the sample with `dotnet run --project src\PowerCLI.Demo` and verify the solution with `dotnet test PowerCLI.sln`.
+Run the hosted version with `dotnet run --project src\PowerCLI.Host`.
 
 **Only `/help` is automatically built in.** The simplest registration path is
 `CommandRegistryBuilder`: declare commands and attach ordinary methods or inline callbacks.
@@ -61,6 +63,18 @@ sample responses). It provides `/echo`, `/choose`, `/export`, `/clear`, and `/ex
 alongside built-in `/help`. `/export` only describes a bogus operation; it never writes
 files. There are no demo-specific interfaces, agent/workflow/tool framework, external
 dependencies, or JSON files to deploy.
+
+`PowerCLI.Host` demonstrates the same terminal with .NET Generic Host dependency
+injection instead of manual wiring. It compile-links `DemoApplication.cs`, so both
+demos share the sample commands and behavior without referencing the demo executable.
+Its host-local `AddPowerCliDemo` registrations share one application instance and
+command registry across dispatch, completion, and ordinary input. A small
+`BackgroundService` runs the terminal; `/exit` or EOF stops the host, and the host
+owns Ctrl+C cancellation. Informational host logs are suppressed, while unexpected
+background-service failures are logged to stderr without ANSI colors and return
+a nonzero exit code. Hosting dependencies exist only in this executable (and its
+tests): the core and original demo remain dependency-free. There is no ASP.NET Core
+web server, web framework reference, or required configuration file.
 
 `TerminalClientService` requires only a console and command dispatcher. Supply
 an optional `ITerminalInputHandler` for ordinary input, returning plain or
