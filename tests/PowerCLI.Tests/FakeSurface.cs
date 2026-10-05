@@ -16,6 +16,10 @@ internal class FakeSurface(IEnumerable<ConsoleKeyInfo> keys, int bufferHeight = 
     public bool UsesVirtualCursor { get; } = virtualCursor;
     public StringBuilder Output { get; } = new();
     public List<string> Highlighted { get; } = [];
+    public void EnqueueKeys(IEnumerable<ConsoleKeyInfo> keys)
+    {
+        foreach (var key in keys) _keys.Enqueue(key);
+    }
     public bool EnsureBufferHeight(int minimumHeight)
     {
         if (_canExpand) BufferHeight = Math.Max(BufferHeight, minimumHeight);

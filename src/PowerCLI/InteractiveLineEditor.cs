@@ -2,12 +2,13 @@ using System.Text;
 
 namespace PowerCLI;
 
-/// <summary>Edits input using raw keys with filtered, arrow-navigated completion menus.</summary>
+/// <summary>Edits input using raw keys with session history and filtered completion menus.</summary>
 public sealed class InteractiveLineEditor : ILineEditor
 {
     private readonly ITerminalConsole _console;
     private readonly IOptionPickerResolver? _resolver;
     private readonly IConsoleInteractionSurface? _surface;
+    private readonly List<string> _history = [];
 
     public InteractiveLineEditor(
         ITerminalConsole console,
@@ -26,13 +27,25 @@ public sealed class InteractiveLineEditor : ILineEditor
     {
         ArgumentNullException.ThrowIfNull(prompt);
         cancellationToken.ThrowIfCancellationRequested();
+        string? input;
         if (_console.IsInputRedirected || _console.IsOutputRedirected)
         {
             _console.Write(prompt);
-            return await _console.ReadLineAsync(cancellationToken);
+            input = await _console.ReadLineAsync(cancellationToken);
+        }
+        else
+        {
+            input = await ReadInteractiveAsync(prompt, cancellationToken);
         }
 
-        return await ReadInteractiveAsync(prompt, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!string.IsNullOrWhiteSpace(input) &&
+            (_history.Count == 0 || !string.Equals(_history[^1], input, StringComparison.Ordinal)))
+        {
+            _history.Add(input);
+        }
+
+        return input;
     }
 
     public async ValueTask<IReadOnlyList<TerminalOption>> CompleteAsync(string input, CancellationToken cancellationToken = default) =>
@@ -67,6 +80,9 @@ public sealed class InteractiveLineEditor : ILineEditor
         var surface = _surface ?? throw new InvalidOperationException("Interactive input requires an IConsoleInteractionSurface.");
         var line = new StringBuilder();
         var cursor = 0;
+        var historyIndex = _history.Count;
+        var draft = string.Empty;
+        var draftCursor = 0;
         var activeIndex = 0;
         var firstVisible = 0;
         var previousRows = 0;
@@ -108,6 +124,17 @@ public sealed class InteractiveLineEditor : ILineEditor
 
             var key = await surface.ReadKeyAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
+            if (key.Key == ConsoleKey.R && (key.Modifiers & ConsoleModifiers.Control) != 0)
+            {
+                if (fixedPicker is null && matches.Count == 0 && historyIndex < _history.Count)
+                {
+                    _history.RemoveAt(historyIndex);
+                    ApplyHistoryEntry();
+                }
+
+                continue;
+            }
+
             if (key.Key == ConsoleKey.Escape && picker is not null)
             {
                 if (fixedPicker is not null)
@@ -117,6 +144,28 @@ public sealed class InteractiveLineEditor : ILineEditor
                 }
 
                 pickerClosed = true;
+                continue;
+            }
+
+            if (fixedPicker is null && matches.Count == 0 && key.Key is ConsoleKey.UpArrow or ConsoleKey.DownArrow)
+            {
+                if (key.Key == ConsoleKey.UpArrow && historyIndex > 0)
+                {
+                    if (historyIndex == _history.Count)
+                    {
+                        draft = line.ToString();
+                        draftCursor = cursor;
+                    }
+
+                    historyIndex--;
+                    ApplyHistoryEntry();
+                }
+                else if (key.Key == ConsoleKey.DownArrow && historyIndex < _history.Count)
+                {
+                    historyIndex++;
+                    ApplyHistoryEntry();
+                }
+
                 continue;
             }
 
@@ -210,6 +259,19 @@ public sealed class InteractiveLineEditor : ILineEditor
 
                     break;
             }
+        }
+
+        void ApplyHistoryEntry()
+        {
+            var isDraft = historyIndex == _history.Count;
+            line.Clear().Append(isDraft ? draft : _history[historyIndex]);
+            cursor = isDraft ? draftCursor : line.Length;
+            pickerClosed = true;
+            activeIndex = 0;
+            firstVisible = 0;
+            selectedValues.Clear();
+            selectionOverrides.Clear();
+            selectionPrefix = null;
         }
     }
 

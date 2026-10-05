@@ -53,6 +53,14 @@ Press **Enter** again to submit the completed line (an exact single choice submi
 For `/use skill ` and `/use instruction `, **Space** toggles choices and **Enter** accepts the
 selected set. **Escape** closes the picker without changing the input.
 **Left/Right**, **Home/End**, **Backspace**, and **Delete** edit the line.
+When no menu choices are shown, **Up/Down** browses submitted input history without wrapping.
+Moving down past the newest entry restores your original draft and cursor.
+**Ctrl+R** removes the recalled history entry and shows the next newer entry, or restores
+the draft if there is none. It does nothing when menu choices are shown or no history
+entry is recalled. Recalled lines keep menus closed until you resume editing.
+History lasts for the editor instance, includes all non-blank submitted inputs, and
+suppresses consecutive exact duplicates. Editing a recalled line does not change its stored
+entry; submitting it records the edited input. Standalone pickers do not use history.
 Long menus scroll within a six-row viewport. Values containing spaces, quotes, or backslashes
 are quoted and escaped automatically. Redirected input or output uses ordinary line input
 without cursor movement or menus.
