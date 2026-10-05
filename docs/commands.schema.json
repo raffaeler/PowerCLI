@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PowerCLI commands, version 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "commands"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "commands": { "type": "array", "items": { "$ref": "#/$defs/command" } }
+  },
+  "$defs": {
+    "command": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "forms"],
+      "properties": {
+        "name": { "type": "string", "pattern": "^/[A-Za-z][A-Za-z0-9-]*$" },
+        "aliases": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^/[A-Za-z][A-Za-z0-9-]*$" } },
+        "description": { "type": "string" },
+        "forms": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/form" } }
+      }
+    },
+    "form": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "syntax", "handler"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "syntax": { "type": "string" },
+        "handler": { "type": "string", "minLength": 1 },
+        "arguments": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_]*$" },
+          "additionalProperties": { "$ref": "#/$defs/value" }
+        },
+        "options": {
+          "type": "object",
+          "propertyNames": { "pattern": "^--[A-Za-z][A-Za-z0-9-]*$" },
+          "additionalProperties": { "$ref": "#/$defs/option" }
+        },
+        "examples": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["string", "integer", "number", "boolean", "relativePath"], "default": "string" },
+        "description": { "type": "string" },
+        "default": { "type": "string" },
+        "min": { "type": "number" },
+        "max": { "type": "number" },
+        "minLength": { "type": "integer", "minimum": 0 },
+        "maxLength": { "type": "integer", "minimum": 0 },
+        "choices": { "$ref": "#/$defs/choices" },
+        "validator": { "type": "string", "minLength": 1 }
+      }
+    },
+    "value": {
+      "allOf": [{ "$ref": "#/$defs/metadata" }],
+      "unevaluatedProperties": false
+    },
+    "option": {
+      "allOf": [{ "$ref": "#/$defs/metadata" }],
+      "unevaluatedProperties": false,
+      "properties": {
+        "aliases": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^(--[A-Za-z][A-Za-z0-9-]*|-[A-Za-z])$" } },
+        "valueName": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_]*$" }
+      }
+    },
+    "choices": {
+      "type": "object",
+      "additionalProperties": false,
+      "oneOf": [{ "required": ["values"], "not": { "required": ["provider"] } }, { "required": ["provider"], "not": { "required": ["values"] } }],
+      "properties": {
+        "values": { "type": "array", "uniqueItems": true, "items": { "type": "string" } },
+        "provider": { "type": "string", "minLength": 1 },
+        "validation": { "enum": ["closed", "suggestions"], "default": "closed" },
+        "selection": { "enum": ["single", "multiple"], "default": "single" },
+        "caseSensitive": { "type": "boolean", "default": false }
+      }
+    }
+  }
+}

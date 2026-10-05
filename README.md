@@ -1,2 +1,63 @@
 # PowerCLI
-A simple library to provide interactive control over the CLI
+
+`PowerCLI` is a .NET 10, console-independent class library for building general-purpose interactive terminals. It supplies:
+
+- Configurable version-1 JSON commands, typed quote-aware parsing, generated help, and cursor-aware completion.
+- A generic terminal loop with host-defined input processing, streamed output, and configurable prompt text.
+- Raw-key editing and filtered single/multi-select menus, ANSI/plain console adapters, and redirected-I/O safeguards.
+- Incremental Markdown streaming with headings, code, lists, links, images, emphasis, tables-as-text, and HTML break normalization.
+
+The library has no document kinds, catalog/session model, agents, skills,
+instructions, workflow engine, model configuration, or built-in tools. Those
+concepts belong to the host application, not the terminal.
+
+## Projects
+
+| Project | Purpose |
+| --- | --- |
+| `src/PowerCLI` | Reusable command, editing, rendering, and terminal I/O library with no application-domain dependency. |
+| `src/PowerCLI.Demo` | Sample host that owns its bogus agents, workflow choices, skills, catalog, selection state, and tools. |
+| `tests/PowerCLI.Tests` | xUnit v3 coverage for commands, completion, Markdown rendering, argument parsing, and tools. |
+
+Run the sample with `dotnet run --project src\PowerCLI.Demo` and verify the solution with `dotnet test PowerCLI.sln`.
+
+**Only `/help` is automatically built in.** Hosts load `CommandConfiguration`
+from JSON or construct records, bind opaque handler/provider/validator IDs through
+public interfaces, and compile a `CommandRegistry` once at startup. Use
+`TerminalCommandHandler` as the injected `ICommandDispatcher` and
+`TerminalCompletionResolver` as the editor's `IOptionPickerResolver`.
+Invalid or ambiguous definitions are rejected before input is accepted; there
+is no runtime reload, script execution, reflection activation, or implicit legacy
+command preset.
+
+See the [command configuration and grammar reference](docs/commands.md) and
+[version-1 JSON Schema](docs/commands.schema.json) for aliases, subcommands,
+alternatives, optional/repeated arguments, named options, types/bounds/defaults,
+static/dynamic choices, host registration, and deliberate deterministic grammar
+limits. The demo loads its explicit `commands.json` from its output directory;
+its host handlers/providers recreate the catalog commands and a generic bogus
+`/export` without adding library dependencies. Catalog trust and tool approval
+rules are implemented exclusively by this sample host.
+
+`TerminalClientService` requires only a console and command dispatcher. Supply
+an optional `ITerminalInputHandler` for ordinary input, returning plain or
+incremental Markdown `TerminalOutput` values. Command handlers can return the
+same output stream through `TerminalCommandResult.Output`. The host owns all
+state, routing, output labels, and application actions; the core never interprets
+resource IDs or chooses an agent/workflow. `TerminalClientOptions` controls the
+prompt and optional welcome text.
+
+Type `/` to open the command menu. Use **Up/Down** to navigate; typing filters choices.
+**Enter** accepts the highlighted option and advances to its argument menu, when applicable.
+Press **Enter** again to submit the completed line (an exact single choice submits immediately).
+For `/use skill ` and `/use instruction `, **Space** toggles choices and **Enter** accepts the
+selected set. **Escape** closes the picker without changing the input.
+**Left/Right**, **Home/End**, **Backspace**, and **Delete** edit the line.
+Long menus scroll within a six-row viewport. Values containing spaces, quotes, or backslashes
+are quoted and escaped automatically. Redirected input or output uses ordinary line input
+without cursor movement or menus.
+Completing in the middle of a line preserves the surrounding text; option values
+support both separated and equals syntax. Execution re-fetches dynamic choices,
+and the demo's own catalog handlers revalidate trust rather than treating a
+completion as authorization. Its approval policy is never requested when
+either console stream is redirected.

@@ -1,0 +1,257 @@
+# Configurable commands (schema version 1)
+
+PowerCLI automatically registers **only `/help [<command>]`**. All application
+commands are explicit host configuration. There is no legacy preset, file
+discovery, scripting, reflection-based activation, or runtime reload.
+
+## Host registration
+
+Load a string with `CommandConfiguration.FromJson`, read a stream with
+`FromJsonAsync`, or construct the same public records in code. Register opaque
+handler, provider, and validator IDs using public interfaces:
+
+```csharp
+var configuration = CommandConfiguration.FromJson(json);
+var registry = new CommandRegistry(
+    configuration,
+    new Dictionary<string, ICommandHandler> { ["host.export"] = exportHandler },
+    new Dictionary<string, ICommandChoiceProvider> { ["host.targets"] = targetProvider },
+    new Dictionary<string, ICommandValidator> { ["host.target"] = targetValidator });
+ICommandDispatcher dispatcher = new TerminalCommandHandler(registry);
+IOptionPickerResolver completion = new TerminalCompletionResolver(registry);
+```
+
+Pass `dispatcher` to `TerminalClientService` and `completion` through its
+`completionResolver` parameter, or inject an `ILineEditor` constructed with the
+resolver. Neither the terminal loop nor dispatcher has a catalog, selection,
+agent, tool, model, or workflow dependency. Its `HandleAsync` method returns `NotACommand` for ordinary
+prompts and handled errors for unknown slash commands, including leading-space
+input. A host handler implements `ICommandHandler.ExecuteAsync`.
+
+The registry copies configuration and registration dictionaries at construction.
+Configuration errors throw `CommandConfigurationException` before input is
+accepted. IDs resolve solely against the supplied registries; they are not
+executable paths or CLR type names.
+
+## Generic terminal hosting
+
+The core supplies terminal mechanics only. It has no document-kind enum,
+catalog, application session, agent interface, workflow runner, model settings,
+or built-in tools. Domain types and policies are owned by the host.
+
+```csharp
+var terminal = new TerminalClientService(
+    console,
+    dispatcher,
+    inputHandler: hostInputHandler,
+    completionResolver: completion,
+    options: new TerminalClientOptions
+    {
+        Prompt = "App> ",
+        WelcomeMessage = "Application ready."
+    });
+await terminal.RunAsync(cancellationToken);
+```
+
+The optional `ITerminalInputHandler.HandleAsync(string, CancellationToken)`
+returns `IAsyncEnumerable<TerminalOutput>` for ordinary input. Omit it for a
+command-only terminal; ordinary input then produces an explicit diagnostic.
+The host owns input routing and state. A command can return a generic stream
+through `TerminalCommandResult.Output`, without the terminal knowing which
+application action produces it.
+
+`TerminalOutputKind.Text` writes a plain line. `Markdown` supplies incremental
+fragments processed by the existing renderer. The optional `Prefix` identifies
+and labels a stream; changes of prefix/style, a plain line, or stream completion
+flush the Markdown stream and terminate its line. `Style` styles the prefix or
+plain text through the console adapter. There are no hard-coded answer,
+reasoning, or tool activity kinds or labels. Streaming failures are reported,
+and cancellation propagates. Set `WelcomeMessage` to null to suppress it.
+
+## JSON
+
+Associate [commands.schema.json](commands.schema.json) with your configuration in
+your editor. The schema describes structural constraints; registry compilation
+also checks grammar, determinism, aliases, references, bounds, defaults, and
+metadata use. JSON property names are case-sensitive. Unsupported versions,
+unknown properties (including nested properties), duplicate properties, missing
+required properties, and explicit JSON nulls are errors. Omit optional properties
+instead of assigning null.
+
+```json
+{
+  "schemaVersion": 1,
+  "commands": [
+    {
+      "name": "/export",
+      "aliases": ["/save"],
+      "description": "Export sample output.",
+      "forms": [
+        {
+          "id": "export",
+          "syntax": "<target> [--format <format>] [--force] [--tag <tags>]*",
+          "handler": "host.export",
+          "arguments": {
+            "target": { "type": "relativePath", "description": "Relative destination." }
+          },
+          "options": {
+            "--format": {
+              "aliases": ["-f"],
+              "valueName": "format",
+              "default": "text",
+              "choices": { "values": ["text", "json"], "validation": "closed" }
+            },
+            "--force": { "type": "boolean" },
+            "--tag": { "valueName": "tags" }
+          },
+          "examples": ["/export sample.json -f json --tag bogus"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+Syntax is the suffix **after** the root command. Every form has a unique `id`
+within its command and a registered `handler`. Capture definitions belong in
+`arguments`; option definitions belong in `options`. `valueName` must match its
+option capture and cannot collide with another capture. Bound option values are
+indexed by the canonical **option name**, e.g. `invocation["--format"]`, not by
+`valueName`. Every definition must be used, and every capture/option must have
+exactly one definition.
+
+## Supported grammar and deterministic boundaries
+
+| Syntax | Meaning |
+| --- | --- |
+| `status` | Required literal keyword. Bare words are not arguments. |
+| `<name>` | One scalar positional capture. |
+| `(agent \| workflow)` | Required literal-distinguished alternative. |
+| `[with <context>]` | Optional sequence; `[a \| b]` is an optional choice. |
+| `<ids>*`, `<ids>+` | Zero-or-more / one-or-more trailing positional captures. |
+| `--force`, `[--force]` | Required / optional boolean switch. |
+| `--format <format>`, `[--format <format>]` | Required / optional valued option. |
+| `[--tag <tags>]*`, `(--tag <tags>)+` | Optional / required repeatable valued option. |
+
+Sequences and grouped alternatives may nest, but alternative branches must
+start with distinguishable literal keywords. Command roots, aliases, literal
+keywords, and option names match case-insensitively. Free text retains its case.
+Root names use `/` followed by an ASCII letter and letters/digits/hyphens.
+Capture names use an ASCII letter followed by letters/digits/underscores.
+Literals use ASCII letters/digits followed by letters/digits/underscores/dots/hyphens.
+
+The compiler expands at most **256 positional branches per form** and rejects
+overlapping branches, including overlap between forms. Types, choice contents,
+required options, and registration order never disambiguate forms. Shared
+prefixes must agree on literal/capture identity. Optional captured sequences
+must be trailing, or distinguishable by literal prefixes; for example,
+`<source> [with <context>]` and `[brief] detailed` work, whereas
+`[<source>] <target>` and `[with <context>] <target>` are rejected.
+Repeated positional captures must be the final positional part of every branch.
+Repetition of arbitrary fragments, nested options inside positional groups or
+alternatives, repeated switches, and empty repeated groups are not supported.
+Declare named-option groups at the top level.
+
+Options may occur before, between, or after positional values regardless of
+their usage-display position. Supported input is `--name value`,
+`--name=value`, and explicitly registered aliases such as `-f value`.
+There are no bundled short flags or implicit negative flags. `--` ends option
+recognition. Leading-dash positional values require `--`; leading-dash named
+values require equals syntax. Nonrepeatable duplicates, including aliases, are
+errors. Required repeatable options need at least one occurrence.
+
+Single and double quotes preserve spaces and empty strings. Single quotes are
+literal. Inside double quotes, a backslash escapes **the next character**,
+including a quote or another backslash. Outside double quotes a backslash is
+literal. Execution rejects unclosed quotes and dangling quoted escapes;
+completion tolerates them. `CommandLineArguments.QuoteIfNeeded` round-trips
+spaces, apostrophes, quotes, backslashes, and empty strings.
+
+## Values, validation, and handler results
+
+Types are `string` (default), signed 64-bit `integer`, finite double `number`,
+`boolean` (`true`/`false`), and lexical `relativePath`. Numeric parsing is
+invariant, never culture-dependent. Relative paths reject empty/rooted paths,
+drive prefixes, and `..` segments on either slash convention. This does not
+access the filesystem or protect against symlinks.
+
+Metadata supports `description`, numeric `min`/`max`, string/path
+`minLength`/`maxLength`, `default`, `choices`, and a registered custom `validator`.
+Bounds are inclusive. Defaults are strings parsed through the declared type and
+are permitted only for optional scalar captures or nonrepeatable valued options.
+Defaults relying on closed dynamic choices or custom validators are rejected:
+they cannot be validated synchronously at startup without invocation context.
+Absent switches bind to `false`, supplied switches to `true`. Absent valued
+captures/options have empty `Items` unless a default exists.
+
+`CommandInvocation` provides canonical command/form/handler IDs, raw input,
+canonical matched literals, immutable bound values, and token source spans.
+`CommandValue` exposes `Scalar`, `Items`, `String`, `Strings`, `Integer`, `Number`,
+and `Boolean`, plus `IsSupplied` and `IsDefault`. Scalar accessors reject absent
+or collection values rather than silently substituting values.
+
+Static choices use `values`; dynamic choices use a registered `provider`, never
+both. `validation: "closed"` rejects values outside the current choice snapshot
+and binds canonical spelling. `"suggestions"` offers choices without restricting
+free input. Static matching defaults to case-insensitive; `caseSensitive` opts
+out. Dynamic providers return their matching policy and picker mode in
+`CommandChoiceSnapshot`, with labels and selected-item state in `TerminalOption`.
+Selection mode must agree with configuration. Multiple selection requires a
+repeated choice-backed capture/option; named-option menus insert one canonical
+option occurrence per selected value.
+Choice values cannot contain terminal control characters; provider labels are
+sanitized before they are returned to either menus or completion clients.
+
+Providers receive `CommandChoiceContext` with earlier parsed literals/values.
+Execution fetches a **fresh snapshot**, never completion's candidates. Provider
+failures are visible; cancellation propagates. Custom validators receive all
+converted/canonical values and return null for success or an error message.
+Invalid input returns `CommandDiagnostic` source spans and generated usage
+without invoking any handler. Host handler failures use the same error-result
+pathway. Handlers return `TerminalCommandResult` to supply messages, clear,
+exit, and generic streamed output without console I/O in the dispatcher.
+Configured handlers must return a handled result; an unhandled/null host result
+is a visible error and never routes slash input to the ordinary-input handler.
+
+## Help, editor, and trust
+
+`/help` lists only registered roots and descriptions. `/help use`, `/help /use`,
+and aliases show the same forms, argument/option metadata, defaults, descriptions,
+and examples. Unknown targets are errors. Help and picker labels strip terminal
+control characters.
+
+Completion shares the compiled registry and binder with execution. It offers
+registered roots/aliases, literal branches, unused options, static choices, and
+dynamic contextual values. `CompletionRequest` carries input and cursor;
+`OptionPicker` carries the exact replacement span and cursor-prefix filter.
+Accepting a menu preserves the suffix. Multiple selection replaces only its
+contiguous capture/option segment and never removes surrounding options.
+Space toggles multiple choices, arrows navigate, Escape dismisses, and Enter
+accepts then submits on the next Enter; an exact final scalar choice can submit
+immediately. Chained menus, six-row scrolling, cursor editing, and quoting remain
+available. Redirects use ordinary line input, no cursor operations or injected
+ANSI styling. Application-specific approvals belong to the host; the sample
+never requests a tool approval when either console stream is redirected.
+
+The library does not define or select catalog resources. The demo's
+`commands.json`, `DemoCommandHandler`, and `DemoCatalogChoices` explicitly
+recreate its application commands and bogus `/export`. Its selection and
+catalog types live in `PowerCLI.Demo`, not the reusable assembly. They filter
+untrusted resources/disabled instructions, limit
+workflow execution to trusted prompt-capable top-level workflows, and revalidate
+at the handler boundary. Skills and enabled instructions are the only selectable
+supporting documents. Catalog failures never fall back to a stale snapshot.
+`DemoInputHandler` adapts the sample's agents, workflows, and tool approvals to
+the generic input/output contract; none of those concepts is needed by another
+host.
+
+### Migrating the original domain-bound API
+
+The old core `TerminalDocumentKind`, catalog/selection types, agent/workflow
+interfaces and activities, tool catalog/policies, model preflight, and sample-root
+startup settings are removed. Useful sample types now belong to
+`PowerCLI.Demo`; unused model/startup configuration is not retained.
+`WorkflowToRun` is removed from command results. Supply a host-produced
+`Output` stream instead. Replace the old service constructor's selection,
+agent, workflow runner, tools, and approval parameters with a single optional
+`ITerminalInputHandler`. This is an intentional breaking API correction.

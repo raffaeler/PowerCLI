@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "commands": [
+    { "name": "/agents", "description": "List trusted agents.", "forms": [{ "id": "agents", "syntax": "", "handler": "demo" }] },
+    { "name": "/workflows", "description": "List trusted workflows.", "forms": [{ "id": "workflows", "syntax": "", "handler": "demo" }] },
+    { "name": "/skills", "description": "List trusted skills.", "forms": [{ "id": "skills", "syntax": "", "handler": "demo" }] },
+    { "name": "/instructions", "description": "List trusted enabled instructions.", "forms": [{ "id": "instructions", "syntax": "", "handler": "demo" }] },
+    { "name": "/tools", "description": "List tools.", "forms": [{ "id": "tools", "syntax": "", "handler": "demo" }] },
+    { "name": "/workflow", "description": "Run a prompt-capable workflow.", "forms": [{
+      "id": "workflow", "syntax": "<id>", "handler": "demo",
+      "arguments": { "id": { "choices": { "provider": "demo.catalog" } } }
+    }] },
+    { "name": "/use", "aliases": ["/select"], "description": "Select demo resources.", "forms": [
+      { "id": "use-agent", "syntax": "(agent | workflow) <id>", "handler": "demo",
+        "arguments": { "id": { "choices": { "provider": "demo.catalog" } } } },
+      { "id": "use-skill", "syntax": "skill <ids>*", "handler": "demo",
+        "arguments": { "ids": { "choices": { "provider": "demo.catalog", "selection": "multiple" } } } },
+      { "id": "use-instruction", "syntax": "instruction <ids>*", "handler": "demo",
+        "arguments": { "ids": { "choices": { "provider": "demo.catalog", "selection": "multiple" } } } },
+      { "id": "use-target", "syntax": "target <path>", "handler": "demo", "arguments": { "path": { "type": "relativePath" } } },
+      { "id": "use-status", "syntax": "status", "handler": "demo" },
+      { "id": "use-clear", "syntax": "clear", "handler": "demo" }
+    ] },
+    { "name": "/print", "description": "Print a trusted catalog resource.", "forms": [{
+      "id": "print", "syntax": "(agent | workflow | skill | instruction) <id>", "handler": "demo",
+      "arguments": { "id": { "choices": { "provider": "demo.catalog" } } }
+    }] },
+    { "name": "/session", "description": "Show selection status.", "forms": [{ "id": "session", "syntax": "", "handler": "demo" }] },
+    { "name": "/new", "description": "Reset selections.", "forms": [{ "id": "new", "syntax": "", "handler": "demo" }] },
+    { "name": "/clear", "description": "Clear the screen.", "forms": [{ "id": "clear", "syntax": "", "handler": "demo" }] },
+    { "name": "/exit", "description": "Exit the demo.", "forms": [{ "id": "exit", "syntax": "", "handler": "demo" }] },
+    { "name": "/export", "description": "Describe a bogus export without accessing files.", "forms": [{
+      "id": "export", "syntax": "<target> [--format <format>] [--force] [--tag <tags>]*", "handler": "demo",
+      "arguments": { "target": { "type": "relativePath", "description": "Sample destination." } },
+      "options": {
+        "--format": { "aliases": ["-f"], "valueName": "format", "default": "text", "choices": { "values": ["text", "json"] } },
+        "--force": { "aliases": ["-y"], "type": "boolean" },
+        "--tag": { "valueName": "tags" }
+      },
+      "examples": ["/export samples.json -f json --tag bogus"]
+    }] }
+  ]
+}
