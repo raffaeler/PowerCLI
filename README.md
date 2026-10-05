@@ -1,5 +1,10 @@
 # PowerCLI
 
+[![PowerCLI NuGet version](https://img.shields.io/nuget/v/PowerCLI?label=PowerCLI)](https://www.nuget.org/packages/PowerCLI/)
+[![PowerCLI NuGet downloads](https://img.shields.io/nuget/dt/PowerCLI?label=PowerCLI%20downloads)](https://www.nuget.org/packages/PowerCLI/)
+[![PowerCLI.AspNetCore NuGet version](https://img.shields.io/nuget/v/PowerCLI.AspNetCore?label=PowerCLI.AspNetCore)](https://www.nuget.org/packages/PowerCLI.AspNetCore/)
+[![PowerCLI.AspNetCore NuGet downloads](https://img.shields.io/nuget/dt/PowerCLI.AspNetCore?label=PowerCLI.AspNetCore%20downloads)](https://www.nuget.org/packages/PowerCLI.AspNetCore/)
+
 `PowerCLI` is a .NET 10, console-independent class library for building general-purpose interactive terminals. It supplies:
 
 - Fluent C# or version-1 JSON commands, typed quote-aware parsing, generated help, and cursor-aware completion.
