@@ -1,9 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="..\NuGetPackage.props" />
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <PackageId>PowerCLI</PackageId>
+    <Description>A console-independent interactive terminal library with fluent commands, quote-aware parsing, contextual completion, raw-key editing, and streaming Markdown rendering.</Description>
+    <PackageTags>cli;terminal;commands;completion;markdown</PackageTags>
   </PropertyGroup>
   <ItemGroup>
     <None Include="..\..\docs\commands.schema.json" Link="commands.schema.json"

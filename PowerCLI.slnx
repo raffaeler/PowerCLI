@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/PowerCLI.AspNetCore/PowerCLI.AspNetCore.csproj" />
+  <Project Path="src/PowerCLI.Demo/PowerCLI.Demo.csproj" />
+  <Project Path="src/PowerCLI.Host/PowerCLI.Host.csproj" />
+  <Project Path="src/PowerCLI/PowerCLI.csproj" />
+  <Project Path="tests/PowerCLI.Tests/PowerCLI.Tests.csproj" />
+</Solution>

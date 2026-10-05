@@ -1,9 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="..\NuGetPackage.props" />
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackageId>PowerCLI.AspNetCore</PackageId>
+    <Description>Dependency injection registrations and a terminal background service for integrating PowerCLI with .NET Generic Host and ASP.NET Core applications.</Description>
+    <PackageTags>cli;terminal;hosting;dependency-injection;aspnetcore</PackageTags>
   </PropertyGroup>
 
   <ItemGroup>

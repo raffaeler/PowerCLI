@@ -21,8 +21,41 @@ concepts belong to the host application, not the terminal.
 | `src/PowerCLI.Host` | The same sample using dependency injection and a .NET Generic Host background service. |
 | `tests/PowerCLI.Tests` | xUnit v3 coverage for commands, completion, history, Markdown rendering, argument parsing, sample apps, and hosted lifecycle. |
 
-Run the sample with `dotnet run --project src\PowerCLI.Demo` and verify the solution with `dotnet test PowerCLI.sln`.
+Run the sample with `dotnet run --project src\PowerCLI.Demo` and verify the solution with `dotnet test PowerCLI.slnx`.
 Run the hosted version with `dotnet run --project src\PowerCLI.Host`.
+
+## NuGet packages
+
+The reusable projects produce `PowerCLI` and `PowerCLI.AspNetCore` packages targeting
+`net10.0`. `PowerCLI.AspNetCore` depends on the matching version of `PowerCLI` and
+`Microsoft.Extensions.Hosting.Abstractions`; the core has no package dependencies.
+The sample applications and test project are not packable.
+
+Build both packages and their portable-PDB symbol packages:
+
+```powershell
+dotnet pack PowerCLI.slnx --configuration Release --output artifacts\packages
+```
+
+The initial version defaults to `0.1.0`. Override it for a release using
+`-p:Version=1.0.0` (or a prerelease such as `-p:Version=1.0.0-preview.1`) on the
+same command, so both packages and the project-reference dependency stay aligned.
+Shared metadata is in `src\NuGetPackage.props`; each library declares its own
+package ID, description, and tags.
+
+Both packages include `Logo.png`, the README, MIT license, and XML API documentation, with
+`Raffaele Rialdi (@raffaeler)` as the author. The .NET 10 SDK supplies GitHub
+SourceLink support without an additional package reference. The `.snupkg` files
+contain portable PDBs mapping tracked source files to the exact Git commit;
+untracked compiled sources are embedded. CI builds enable normalized,
+deterministic paths when `CI`, `GITHUB_ACTIONS`, or `TF_BUILD` is `true`; for
+other build systems, pass `-p:ContinuousIntegrationBuild=true`.
+
+Pack releases from a clean, committed Git checkout so SourceLink retrieves the
+same source used to build the assemblies. Before publishing, confirm the package
+IDs are available to your NuGet.org account and choose the release version.
+Publishing is a separate, explicit step; this repository does not store API keys
+or automatically push packages.
 
 **Only `/help` is automatically built in.** The simplest registration path is
 `CommandRegistryBuilder`: declare commands and attach ordinary methods or inline callbacks.
