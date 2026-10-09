@@ -205,6 +205,69 @@ public sealed class CommandCompletionTests
         Assert.Equal(0, surface.RemainingKeys);
     }
 
+    [Theory]
+    [InlineData("/x resnet27-wallp")]
+    [InlineData("/x RESNET27-WALLP")]
+    [InlineData("/x \"resnet27-wallp\"")]
+    [InlineData("/x 'resnet27-wallp'")]
+    [InlineData("/x --collection=resnet27-wallp")]
+    [InlineData("/x --collection \"resnet27-wallp\"")]
+    public async Task FullyTypedScalarChoiceClosesMenuBeforeEnter(string input)
+    {
+        var form = ConfigurableCommandTests.Form("[<collection>] [--collection <name>] [--force]", "collection") with
+        {
+            Arguments = new Dictionary<string, CommandValueDefinition>
+            { ["collection"] = new() { Choices = new() { Values = ["resnet27-wallp", "resnet27-wallpaper"] } } },
+            Options = new Dictionary<string, CommandOptionDefinition>
+            {
+                ["--collection"] = new() { ValueName = "name", Choices = new() { Values = ["resnet27-wallp", "resnet27-wallpaper"] } },
+                ["--force"] = new() { Type = "boolean" }
+            }
+        };
+        var surface = new FakeSurface([.. Text(input), Enter]);
+        var editor = new InteractiveLineEditor(new FakeConsole(), new TerminalCompletionResolver(ConfigurableCommandTests.Create(form)), surface);
+
+        Assert.Equal(input, await editor.ReadLineAsync("", Token));
+        Assert.Equal(0, surface.RemainingKeys);
+        Assert.Contains(surface.KeyFrames, frame => frame.Contains("resnet27-wallpaper", StringComparison.Ordinal));
+        Assert.EndsWith(input, surface.KeyFrames[^1], StringComparison.Ordinal);
+        Assert.DoesNotContain(Environment.NewLine, surface.KeyFrames[^1], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task EditingExactChoiceReopensSuggestionsAndSpaceOpensNextContext()
+    {
+        var form = ConfigurableCommandTests.Form("<collection> [--force]", "collection") with
+        {
+            Arguments = new Dictionary<string, CommandValueDefinition>
+            { ["collection"] = new() { Choices = new() { Values = ["resnet27-wallp"] } } },
+            Options = new Dictionary<string, CommandOptionDefinition>
+            { ["--force"] = new() { Type = "boolean" } }
+        };
+        const string input = "/x resnet27-wallp";
+        var surface = new FakeSurface([.. Text(input), Key(ConsoleKey.Backspace), .. Text("p "),
+            Key(ConsoleKey.Escape), Enter]);
+        var editor = new InteractiveLineEditor(new FakeConsole(), new TerminalCompletionResolver(ConfigurableCommandTests.Create(form)), surface);
+
+        Assert.Equal(input + " ", await editor.ReadLineAsync("", Token));
+        Assert.DoesNotContain(Environment.NewLine, surface.KeyFrames[input.Length], StringComparison.Ordinal);
+        Assert.Contains(Environment.NewLine, surface.KeyFrames[input.Length + 1], StringComparison.Ordinal);
+        Assert.Contains("--force", surface.KeyFrames[input.Length + 3], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UnclosedQuotedChoiceStillNeedsCompletion()
+    {
+        var form = ConfigurableCommandTests.Form("<collection>", "collection") with
+        { Arguments = new Dictionary<string, CommandValueDefinition>
+            { ["collection"] = new() { Choices = new() { Values = ["resnet27-wallp"] } } } };
+        var surface = new FakeSurface([.. Text("/x \"resnet27-wallp"), Enter, Enter]);
+        var editor = new InteractiveLineEditor(new FakeConsole(), new TerminalCompletionResolver(ConfigurableCommandTests.Create(form)), surface);
+
+        Assert.Equal("/x resnet27-wallp", await editor.ReadLineAsync("", Token));
+        Assert.Equal(0, surface.RemainingKeys);
+    }
+
     [Fact]
     public async Task CompletingAnOptionValueBeforeThePositionalValueChainsToThatValue()
     {

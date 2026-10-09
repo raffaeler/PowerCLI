@@ -151,7 +151,9 @@ prompt and optional welcome text.
 
 Type `/` to open the command menu. Use **Up/Down** to navigate; typing filters choices.
 **Enter** accepts the highlighted option and advances to its argument menu, when applicable.
-Press **Enter** again to submit the completed line (an exact single choice submits immediately).
+Press **Enter** again to submit the completed line. When the value at the end of the line
+exactly matches a single-select choice, its menu disappears and **Enter** submits immediately.
+Editing the value reopens suggestions; typing a space opens the next argument context, if any.
 For the demo's `/choose ` menu, **Space** toggles choices and **Enter** accepts the
 selected set. **Escape** closes the picker without changing the input; when no picker
 is open, it clears the entire input line and resets the caret to the start.

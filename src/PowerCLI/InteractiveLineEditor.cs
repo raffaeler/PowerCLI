@@ -98,6 +98,11 @@ public sealed class InteractiveLineEditor : ILineEditor
             cancellationToken.ThrowIfCancellationRequested();
             var picker = pickerClosed ? null : fixedPicker ??
                 (_resolver is null ? null : await _resolver.ResolvePickerAsync(new CompletionRequest(line.ToString(), cursor), cancellationToken));
+            if (fixedPicker is null && IsExactChoice(picker, line.ToString(), cursor))
+            {
+                picker = null;
+            }
+
             if (picker is not null && !string.Equals(selectionPrefix, picker.InputPrefix, StringComparison.OrdinalIgnoreCase))
             {
                 selectedValues.Clear();
@@ -192,14 +197,6 @@ public sealed class InteractiveLineEditor : ILineEditor
             {
                 var replacementStart = picker.ReplacementStart ?? picker.InputPrefix.Length;
                 var replacementLength = picker.ReplacementLength ?? line.Length - replacementStart;
-                if (fixedPicker is null && picker.Mode == OptionPickerMode.Single && !picker.AppendSpace &&
-                    replacementStart + replacementLength == line.Length &&
-                    picker.Options.Any(option => string.Equals(Format(option), line.ToString(replacementStart, replacementLength), StringComparison.OrdinalIgnoreCase)))
-                {
-                    Finish(surface, startLeft, startTop, prompt, line.ToString(), previousRows);
-                    return line.ToString();
-                }
-
                 var values = picker.Mode == OptionPickerMode.Single
                     ? Format(matches[activeIndex])
                     : string.Join(' ', picker.Options.Where(option => selectedValues.Contains(option.Value))
@@ -287,6 +284,41 @@ public sealed class InteractiveLineEditor : ILineEditor
 
     private static string Format(TerminalOption option) =>
         option.QuoteWhenInserted ? CommandLineArguments.QuoteIfNeeded(option.Value) : option.Value;
+
+    private static bool IsExactChoice(OptionPicker? picker, string input, int cursor)
+    {
+        if (picker is not { Mode: OptionPickerMode.Single, Error: null } || cursor != input.Length)
+        {
+            return false;
+        }
+
+        var start = picker.ReplacementStart ?? picker.InputPrefix.Length;
+        var length = picker.ReplacementLength ?? input.Length - start;
+        if (start + length != input.Length || !input.StartsWith(picker.InputPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var value = input.Substring(start, length);
+        if (picker.Options.Any(option => !option.QuoteWhenInserted &&
+            string.Equals(option.Value, value, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        IReadOnlyList<string> tokens;
+        try
+        {
+            tokens = CommandLineArguments.Parse(value);
+        }
+        catch (CommandInputException)
+        {
+            return false;
+        }
+
+        return tokens.Count == 1 && picker.Options.Any(option => option.QuoteWhenInserted &&
+            string.Equals(option.Value, tokens[0], StringComparison.OrdinalIgnoreCase));
+    }
 
     private static IReadOnlyList<TerminalOption> Matches(OptionPicker? picker, string input)
     {

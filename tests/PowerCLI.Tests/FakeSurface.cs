@@ -8,6 +8,7 @@ internal class FakeSurface(IEnumerable<ConsoleKeyInfo> keys, int bufferHeight = 
 {
     private readonly Queue<ConsoleKeyInfo> _keys = new(keys);
     private readonly bool _canExpand = canExpand;
+    private int _frameStart;
     public int RemainingKeys => _keys.Count;
     public int CursorLeft { get; private set; }
     public int CursorTop { get; private set; } = initialTop;
@@ -16,6 +17,7 @@ internal class FakeSurface(IEnumerable<ConsoleKeyInfo> keys, int bufferHeight = 
     public bool UsesVirtualCursor { get; } = virtualCursor;
     public StringBuilder Output { get; } = new();
     public List<string> Highlighted { get; } = [];
+    public List<string> KeyFrames { get; } = [];
     public void EnqueueKeys(IEnumerable<ConsoleKeyInfo> keys)
     {
         foreach (var key in keys) _keys.Enqueue(key);
@@ -25,8 +27,12 @@ internal class FakeSurface(IEnumerable<ConsoleKeyInfo> keys, int bufferHeight = 
         if (_canExpand) BufferHeight = Math.Max(BufferHeight, minimumHeight);
         return minimumHeight <= BufferHeight;
     }
-    public virtual ValueTask<ConsoleKeyInfo> ReadKeyAsync(CancellationToken cancellationToken = default) =>
-        ValueTask.FromResult(_keys.Dequeue());
+    public virtual ValueTask<ConsoleKeyInfo> ReadKeyAsync(CancellationToken cancellationToken = default)
+    {
+        KeyFrames.Add(Output.ToString(_frameStart, Output.Length - _frameStart));
+        _frameStart = Output.Length;
+        return ValueTask.FromResult(_keys.Dequeue());
+    }
     public void SetCursorPosition(int left, int top)
     {
         if (left < 0 || left >= WindowWidth || top < 0 || (!UsesVirtualCursor && top >= BufferHeight))

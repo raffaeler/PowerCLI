@@ -340,8 +340,12 @@ Accepting a menu preserves the suffix. Multiple selection replaces only its
 contiguous capture/option segment and never removes surrounding options.
 Space toggles multiple choices, arrows navigate, Escape dismisses an open picker
 (otherwise clearing the entire input line and resetting the caret), and Enter
-accepts then submits on the next Enter; an exact final scalar choice can submit
-immediately. Chained menus, six-row scrolling, cursor editing, and quoting remain
+accepts then submits on the next Enter. An exact scalar choice at the end of the
+line dismisses its menu before the next key, so Enter submits immediately.
+Closed quoted values are matched by their parsed value; unclosed quotes still
+offer completion. Editing the value reopens suggestions, and typing a space
+opens the next argument context, if any. Multiple-select menus remain available
+for toggling choices. Chained menus, six-row scrolling, cursor editing, and quoting remain
 available. Redirects use ordinary line input, no cursor operations or injected
 ANSI styling. When no choices are displayed, Up/Down browses editor-session history
 and Ctrl+R removes the recalled entry. Navigation past the newest entry or removal of
